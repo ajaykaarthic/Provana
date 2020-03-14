@@ -21,7 +21,6 @@ except ModuleNotFoundError as e:
 Angles=[0,0,0]
 check=[0,0]
 direction =[0,1]
-angle = 0
 logger = logging.getLogger('TfPoseEstimator')
 logger.handlers.clear()
 logger.setLevel(logging.INFO)
@@ -143,9 +142,6 @@ class Human:
                 x = min(part_neck.x * img_w - half_w, x)
                 x2 = max(part_neck.x * img_w + half_w, x2)
 
-        # ------ Adjust heuristically -
-
-        # fit into the image frame
         x = max(0, x)
         y = max(0, y)
         x2 = min(img_w - x, x2 - x) + x
@@ -239,11 +235,6 @@ class TfPoseEstimator:
         tf.import_graph_def(graph_def, name='TfPoseEstimator')
         self.persistent_sess = tf.Session(graph=self.graph, config=tf_config)
 
-        # for op in self.graph.get_operations():
-        #     print(op.name)
-        # for ts in [n.name for n in tf.get_default_graph().as_graph_def().node]:
-        #     print(ts)
-
         self.tensor_image = self.graph.get_tensor_by_name('TfPoseEstimator/image:0')
         self.tensor_output = self.graph.get_tensor_by_name('TfPoseEstimator/Openpose/concat_stage7:0')
         self.tensor_heatMat = self.tensor_output[:, :, :, :19]
@@ -313,126 +304,63 @@ class TfPoseEstimator:
         
     @staticmethod
     def draw_humans(npimg, humans,imgcopy=False):
-        #count=0
+        count=0
         if imgcopy:
             npimg = np.copy(npimg)
         image_h, image_w = npimg.shape[:2]
         centers = {}
         for human in humans:
             # draw point
-            f1=0
-            f2=0
-            f3=0
-            a=[0,0]
-            b=[0,0]
-            c=[0,0]
+            c11=[0,0]
+            c12=[0,0]
+            c13=[0,0]
+            f11=0
+            f12=0
+            f13=0
             for i in range(common.CocoPart.Background.value):
                 if i not in human.body_parts.keys():
                     continue
-                #print(i)
-                #print(human.body_parts[i])
-                if i in [8,9,10]:
+
+                if i in [11,12,13]:
                     body_part = human.body_parts[i]
                     center = (int(body_part.x * image_w + 0.5), int(body_part.y * image_h + 0.5))
                     centers[i] = center
-                    #print(i,center)
                     points = list(center)
-                    '''a=np.array([1,2])
-                    b=np.array([1,2])
-                    c=np.array([1,2])'''
-                    if i == 8:
-                        #a = np.array(points)
-                        a=points
-                        f1=1
-                    if i == 9:
-                        #b = np.array(points)
-                        b=points
-                        f2=1
-                    if i == 10:
-                        #c = np.array(points)
-                        c=points	
-                        f3=1
+                    if i == 11:
+                        c11=points
+                        f11=1
+                    if i == 12:
+                        c12=points
+                        f12=1
+                    if i == 13:
+                        c13=points	
+                        f13=1                                           
                     ang = 0
-                    cv2.circle(npimg, center, 3, common.CocoColors[i], thickness=2, lineType=8, shift=0)
-                    #cv2.putText(npimg,"CORRECT %d"%check[0],(10,500),cv2.FONT_HERSHEY_SIMPLEX,1.0,(0,255,0),4)
-                    #cv2.putText(npimg,"WRONG %d"%check[1],(10,650),cv2.FONT_HERSHEY_SIMPLEX,1.0,(255,0,0),4)
-                    '''global angle
+                    cv2.circle(npimg, center, 3, common.CocoColors[i], thickness=3, lineType=8, shift=0)
                     def findAngle(a,b,c):
-                        angle = math.degrees(math.atan2(c[1]-b[1], c[0]-b[0]) - math.atan2(a[1]-b[1], a[0]-b[0]))
-                        if angle < 0:
-                            angle +=360
-                            print(1)
-                            if angle > 180 and angle < 270:
-                                angle = angle - 180
-                                print(2)
-                            elif angle > 270:
-                                angle = 360 - angle
-                                print(3)
-                        elif angle > 180:
-                            angle = angle - 180
-                            print(4)
-                                
-                        return angle'''
-
-                    global angle
-                    def findAngle(a,b,c):
-                        angle = math.degrees(math.atan2(c[1]-b[1], c[0]-b[0]) - math.atan2(a[1]-b[1], a[0]-b[0]))
-                        if angle < 0:
-                            angle +=360
-                        else:
-                            angle = angle
-                                
-                        return angle
-
-
-                    if f1 == 1 and f2 == 1 and f3 == 1:
-                        #count+=1
-                        ang=findAngle(a,b,c)
-                        Angles.append(ang)
-                        cv2.putText(npimg,"Finding Correctness",(10,100),cv2.FONT_HERSHEY_SIMPLEX,1.0,(255,0,0),2)
-                        #print("top:",direction[0],"down:",direction[1])
-                        #print("angle:",ang)
-                        #print(Angles[-3],Angles[-2],Angles[-1])
-                        #print(Angles)
-                        cv2.putText(npimg,"Knee angle: %d"%ang,(10,500),cv2.FONT_HERSHEY_SIMPLEX,1.0,(155,255,120),4)
-                        if ang>=200:
-                            cv2.putText(npimg,"Knees are bent correctly ",(10,530),cv2.FONT_HERSHEY_SIMPLEX,1.0,(0,255,0),4)
-                            #print('Knees are bent correctly')
-                        '''if ang>=120 and direction[0]==1:
-                            direction[1]=2
-                        if ang<=50:
-                            direction[0]=1
-                        if Angles[-3]>Angles[-2]:
-                            if direction[0]==1 and direction[1]==2:
-                                check[0]+=1
-                                print("\n\ncorrect1:",check[0])
-                                direction[0]=0
-                                direction[1]=0
-                                Angles[-3]=Angles[-1]
-                                Angles[-2]=Angles[-1]
-                            elif Angles[-1]>Angles[-2] and ang<=120 and Angles[-3]!=0 and direction[0]!=1:
-                                check[1]+=1
-                                print("\n\nwrong1:",check[1])
-                        if Angles[-3]<Angles[-2]:
-                            if direction[0]==1 and direction[1]==2:
-                                check[0]+=1
-                                print("\n\ncorrect2:",check[0])
-                                direction[0]=0
-                                direction[1]=0
-                                Angles[-3]=Angles[-1]
-                                Angles[-2]=Angles[-1]
-                            elif Angles[-2]>Angles[-1] and ang<=120 and Angles[-3]!=0 and direction[1]!=2:
-                                check[1]+=1
-                                print("\n\nwrong2:",check[1])
-                        #cv2.putText(npimg,ang, (100, 10),  cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)'''        
-      
+                        ang = math.degrees(math.atan2(c[1]-b[1], c[0]-b[0]) - math.atan2(a[1]-b[1], a[0]-b[0]))
+                        return ang+360 if ang<0 else ang
+                    
+                    # Module that checks for knee bend for half squats
+                    if f11==f12==f13==1:
+                        ang = findAngle(c11,c12,c13)
+                        knee_angle = ang
+                        if knee_angle > 130:
+                            cv2.putText(npimg,"Bend your knees further for a perfect posture",(100,780),cv2.FONT_HERSHEY_SIMPLEX,1.5,(0,0,255),3)
+                        elif knee_angle < 95:
+                            cv2.putText(npimg,"You're over bending your knees",(100,780),cv2.FONT_HERSHEY_SIMPLEX,1.5,(0,0,255),3)
+                        elif knee_angle > 85 and knee_angle < 130:
+                            cv2.putText(npimg,"Good Posture",(100,780),cv2.FONT_HERSHEY_SIMPLEX,1.5,(0,255,0),3)
+                            
+                            
+                        cv2.putText(npimg,"Knee angle: %d"%knee_angle,(10,50),cv2.FONT_HERSHEY_SIMPLEX,1,(225,0,0),2) 
+    
 
             # draw line
             for pair_order, pair in enumerate(common.CocoPairsRender):
                 if pair[0] not in human.body_parts.keys() or pair[1] not in human.body_parts.keys():
                     continue
-                #npimg = cv2.line(npimg, centers[pair[0]], centers[pair[1]], common.CocoColors[pair_order], 3)
-                #cv2.line(npimg, centers[pair[0]], centers[pair[1]], common.CocoColors[pair_order], 3)
+
         return npimg
 
     def _get_scaled_img(self, npimg, scale):
